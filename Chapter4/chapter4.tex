@@ -1,0 +1,45 @@
+\ifpdf
+\graphicspath{{Chapter4/Figs/}}
+\else
+\graphicspath{{Chapter4/Figs/}}
+\fi
+
+\chapter{Contribution of Research}
+\section{Objectives}
+\label{sec:4-Contribution of Research Objectives}
+Based on the performance analysis of the Zerocoin in \S\ref{sec:3-Performance of Zerocoin and Areas for Improvement}, this research aims to improve these aspects of Zerocoin: 
+
+\begin{enumerate}
+	\item Reduce the time taken to verify the Accumulator Proof of Knowledge
+	\item Reduce the time taken to verify the Serial Number Signature of Knowledge
+	\item Reduce the size of the Accumulator Proof of Knowledge
+	\item Reduce the size of the Serial Number Signature of Knowledge
+\end{enumerate}
+
+If time permits, the research will also explore how to improve on the functionality drawbacks of Zerocoin (\S\ref{sec:2-Zerocoin Drawbacks}). For example, this research can look into how to allow direct payments with coins without the need to redeem a coin into Bitcoins before paying with Bitcoins, or how to create coins with arbitrary denomination.
+
+\section{Performance Metrics and Benchmarks}
+\label{sec:4-Performance Metrics and Benchmarks}
+Some of the performance metrics that will be used to evaluate the proposed improvements are adapted from the Zerocoin paper \cite{Miers2013}. These performance metrics are:
+
+\begin{enumerate}
+	\item Size of the AccPoK and SNSoK
+	\item Time taken to verify the AccPoK and SNSoK
+	\item Transaction verifications per minute by a node, across different percentages of Zerocoin transactions being processed
+\end{enumerate}
+
+However the metrics used by the Zerocoin paper is inadequate as they only measure performance at a node level. To make the tests more realistic, this research will use additional metrics that measure performance at a network level. These performance metrics are:
+
+\begin{enumerate}
+	\item Time taken for transactions to propagate to every node in a network, across different percentages of Zerocoin transactions in the network
+	\item Time taken for \kwBlock{s} to propagate to every node in a network, across different percentage of Zerocoin transactions in the network
+\end{enumerate}
+
+The propagation times already include the time taken to verify transactions or \kwBlock{} as every node is supposed to verify the transactions or \kwBlock{s} they receive before forwarding them to its peers. Thus propagation time is a good measure of the overall performance of the Zerocoin protocol. At this point the exact setup of the network that will be used to test the propagation times has not been determined. While it is desirable to conduct the experiments on a network that has a comparable scale to Bitcoin (3500 active nodes with an average of 32 random peers each \cite{Decker2013}), it is unlikely to be achieved given limitations in resource.  However to make the experiments realistic, the scaled-down network will roughly follow Bitcoin’s ratio of active nodes to the number of peers for each node.  
+
+Using these performance metrics, the proposed improvements to Zerocoin will be benchmarked against the original Zerocoin protocol to quantify the degree of improvement. In addition, Bitcoin statistics that relate to the performance metrics will also be obtained to see if the proposed improvements are able to bring the performance of Zerocoin to a commercially realistic level.
+
+\section{Current Status}
+\label{sec:4-Contribution of Research Current Status}
+At this point, this research has proposed a SNSoK that has a smaller size and takes a shorter time to verify than the original SNSoK. The proposed SNSok has been analysed for the three properties of zero-knowledge proofs. It has also been successfully implemented in libzerocoin and its performance has been measured using some basic performance metrics defined in \S\ref{sec:4-Performance Metrics and Benchmarks}. The proposed SNSok and its results are detailed in \S\ref{ch:Contribution 1: A more Efficient Serial Number Signature of Knowledge}.
+In addition, this research has also proposed an optimisation to the AccPoK that can reduce its size. However the performance of this optimisation is only theoretically evaluated and has not been implemented or tested. The proposed optimisation is detailed in \S\ref{ch:Contribution 2: A Smaller Accumulator Proof of Knowledge}.

@@ -1,0 +1,31 @@
+\ifpdf
+\graphicspath{{Chapter6/Figs/}}
+\else
+\graphicspath{{Chapter6/Figs/}}
+\fi
+
+\chapter{Contribution 2: A Smaller Accumulator Proof of Knowledge}
+\label{ch:Contribution 2: A Smaller Accumulator Proof of Knowledge}
+\section{Problem with Original AccPoK}
+\label{sec:6-Problem with Original AccPoK}
+The AccPoK is the other NIZK proof in Zerocoin that is relatively inefficient. This is mainly because the AccPoK contains 8 sub-proofs that must be all verified (\S\ref{sec:3-Accumulator Proof of Knowledge}). While the steps in the proof are made clear by its authors Camenisch and Lysyanskaya \cite{JanCamenisch12002}, the reasons behind every sub-proof are not described in detail. To revisit the AccPoK, the proof statement is shown:
+
+\eqnAccPoKActual
+
+$\varAccPoKCoinComm=\varAccPoKGComm^c\varAccPoKHComm^\varphi$ is a sub-proof that $\varAccPoKCoinComm$ contains the \kwCoin{} $c$, $A=\varAccPoKProofComm{w}^c(1/\varAccPoKHProof)^\beta=(w\varAccPoKHProof^{\epsilon})^{c}\allowbreak(1/\varAccPoKHProof)^\beta=w^{c}\varAccPoKHProof^{c\epsilon-\beta}$ is a sub-proof for the membership of $c$ in $A$ using witness $w$, and $c\in[\mathfrak{A},\mathfrak{B}]$ is a sub-proof that the value of $c$ is within the allowed range. However this research is unable to understand the reasons behind the other sub-proofs and thus little can be done to improve the AccPoK at the theoretical level. Nevertheless, this research has found an implementation optimisation to reduce the size of the AccPoK.
+
+\section{Proposed Size Optimisation for AccPoK}
+\label{sec:6-Proposed Size Optimisation for AccPoK}
+The verifier of the current AccPoK receives the following values from the prover:
+
+$$s_\alpha,s_\beta,s_\zeta,s_\sigma,s_\eta,s_\epsilon,s_\delta,s_\xi,s_\varphi,s_\gamma,s_\psi,\mathfrak{t}_1,\mathfrak{t}_2,\mathfrak{t}_3,t_1,t_2,t_3,t_4,\varChallenge$$
+
+$\varChallenge$ is the challenge string that has the value $H(\expConcatAccPoKFull)$. $\varChallenge$ is 256 bits long while the average size of each $s_i$, $t_i$ and $\mathfrak{t}_i$ are 2080, 3070 and 550 bits respectively \footnote{Values are obtained by running libzerocoin.}. The large amount of proof parameters and the relatively large size of each parameter is the main reason for the large size of the AccPoK. Borrowing the concept used in the original SNSoK (\S\ref{sec:3-Serial Number Signature of Knowledge}), the size of the proof can be reduced by removing the need to send $t_i$ and $\mathfrak{t}_i$ to the verifier.
+
+When verifying the AccPoK, the verifier essentially computes a set of $t'_i$ and $\mathfrak{t}'_i$ using the $\varChallenge$ and $s_i$ received from the prover and checks if $t'_i$ and $\mathfrak{t}'_i$ equal to the corresponding $t_i$ and $\mathfrak{t}_i$ received from the prover. For example, one equality that the verifier checks is whether $\mathfrak{t}_1=\varAccPoKCoinComm^{\varChallenge}\varAccPoKGComm^{s_\alpha}\varAccPoKHComm^{s_\zeta}$. This process can be modified such that the verifier does not check for the equalities directly. To achieve this, the verifier computes $t'_i$ and $\mathfrak{t}'_i$ like before, but also further computes $\varChallenge'=H(\expConcatAccPoKImproved)$. Then, the verifier simply checks that $\varChallenge'$ equals to the $\varChallenge$ received from the prover to verify the proof. The proposed optimization works based on the same idea detailed in \S\ref{sec:5-Performance of Proposed SNSoK and Future Work}. Since the $\varChallenge$ sent by the prover is a hash of all the $t_i$ and $\mathfrak{t}_i$ together with other public parameters, $\varChallenge=\varChallenge'$ if and only if the $t'_i$ and $\mathfrak{t}'_i$ that are used to compute $\varChallenge'$ equals to their corresponding and $t_i$ and $\mathfrak{t}_i$.
+ 
+With the proposed optimisation, the prover includes $\varChallenge$ in the AccPoK instead of $t_i$ and $\mathfrak{t}_i$. Given that $\varChallenge$ is only 256 bits long while the four $t_i$ and three $\mathfrak{t}_i$ have an average size of 3070 bits and 550 bits respectively, the proposed optimisation should be able to reduce the size of the AccPoK by about 1.7KB. However, the proposed optimisation has not been implemented and its performance remains to be seen.
+
+\section{Future Work}
+\label{sec:6-AccPoK Future Work}
+To ensure that the AccPoK works with the proposed optimisation, it will first be implemented and tested in libzerocoin. Some basic performance metrics such as the size of the optimised AccPoK and the time needed to verify it will be collected. Eventually, the Zerocoin protocol that includes the optimised AccPoK will be tested on a network level using the set up outlined in \S\ref{sec:4-Performance Metrics and Benchmarks}. In the meantime, this research will also explore other areas of optimisation for the AccPoK. 

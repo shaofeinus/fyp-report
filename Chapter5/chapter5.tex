@@ -1,0 +1,91 @@
+\ifpdf
+\graphicspath{{Chapter5/Figs/}}
+\else
+\graphicspath{{Chapter5/Figs/}}
+\fi
+
+\chapter{Contribution 1: A more Efficient Serial Number Signature of Knowledge}
+\label{ch:Contribution 1: A more Efficient Serial Number Signature of Knowledge}
+\section{Problem with Original SNSoK}
+\label{sec:5-Problem with Original SNSoK}
+The most problematic NIZK proof out of the three proofs in Zerocoin is the SNSoK as it has the biggest size and takes the longest time to verify. The inefficiency in the SNSoK is mainly due to the proof requiring 80 iterations of the same proof process (\S\ref{sec:3-Serial Number Signature of Knowledge}), which means that 80 sets of proof parameters are generated and verified to in one SNSoK. This differs from the standard scheme of the Fiat-Shamir heuristic, where the verification of the resultant proof only requires a single iteration.
+
+\section{Construction of Proposed SNSoK}
+\label{sec:5-Construction of Proposed SNSoK}
+This research proposes a more efficient SNSoK that modifies the ZK proof for a committed value in a Pedersen commitment outlined by Hohenberger \cite{Hohenberger2002}. The standard Fiat Shamir Heuristics is used to make the proof non-interactive and the resultant proof can be verified in a single iteration.
+
+The proposed SNSoK starts off in a same way as the original SNSoK. In order to hide the \kwCoin{} $c$ that is being proven, the prover creates a Pedersen commitment $y$ of $c$ using a random trapdoor $z\in\expIntGroup{\varQSok}$, such that $y=\expSoKCoinComm{c}=\expSoKCoinComm{\expPedCommCoin}$. Also, like in the original proof, the SNSoK proves in zero-knowledge that $y$ contains a $c$ that is a commitment of the serial number $S$ and trapdoor $r$ as follows:
+
+$$\eqnSNSoKActual$$
+
+However of the proposed SNSoK does not required 80 $(t,s,s')$ values to be included in the proof. Instead, alluding to the methods by Hohenberger, the prover computes a single $t=\varGSok^{\varGComm^{S}\varHComm^{v_1}}\varHSok^{v_2}$ where $v_1\in\expIntGroup{\varQComm},v_2\in\expIntGroup{\varQSok}$. Following the principle of the Fiat-Shamir heuristics, the prover then computes the challenge string $\varChallenge=H(\expConcatSNSoKImproved)$ which also doubles up as the signature for the transaction contents $m$ (\S\ref{sec:3-Serial Number Signature of Knowledge}). The prover then computes a single $s=\varHComm^{v_1}-\varChallenge\varHComm^{r}$ and $s'=v_2-\varChallenge z$. The prover writes $y,t,s,s'$ and the transaction content $m$ into the \kwTransaction{Spend }{}. Upon receiving the \kwTransaction{Spend }{}, the verifying node recomputes $\varChallenge=H(\expConcatSNSoKImproved)$ using the received $y,t,m$, the serial number $S$ of the \kwCoin{} and the public parameters $\varGSok,\varHSok$. The verifier then verifies the proof by checking $t=y^{\varChallenge}\varGSok^{\varGComm^{S}s}\varHSok^{s'}$.
+
+Since only a single tuple $(t,s,s')$ is included in the proposed SNSoK as opposed to the 80 $(t,s,s')$ in the original SNSoK, the proof size of the proposed SNSoK should be smaller by about 80 times. Similarly, the time needed to verify the proposed SNSoK should also decrease by a similar amount since verification is done in one iteration instead of the 80 iterations in the original SNSoK. The exact improvements in performance brought by the proposed SNSoK is shown in \S\ref{sec:5-Performance of Proposed SNSoK and Future Work}.
+
+\section{Zero-Knowledge Properties of Proposed SNSoK}
+\label{sec:5-Zero-Knowledge Properties of Proposed SNSoK}
+In order for the proposed SNSoK to be valid, it must satisfy the three ZK properties defined in \S\ref{sec:3-Properties of Zero-Knowledge Proofs}.
+
+\subsection{Completeness}
+The completeness property of the improved SNSoK can be shown by demonstrating that the proof produced by an honest prover who knows $S,r,z$ can always to be verified. Hence it suffices to show that the verification equation is correct. To prove that $t=y^{\varChallenge}\varGSok^{\varGComm^{S}s}\varHSok^{s'}$, the equation can be expanded as such:
+
+\begin{equation*}
+	\begin{split}
+	t &= y^{\varChallenge}\varGSok^{\varGComm^{S}s}\varHSok^{s'} \\
+	&= (\expSoKCoinComm{\expPedCommCoin})^{\varChallenge}\varGSok^{\varGComm^{S}(\varHComm^{v_1}-\varChallenge\varHComm^{r})}\varHSok^{v_2-\varChallenge z} \\
+	&= \varGSok^{\varChallenge\varGComm^{S}\varHComm^{r}}\varHSok^{\varChallenge z}\varGSok^{\varGComm^{S}\varHComm^{v_1}-\varChallenge\varGComm^{S}\varHComm^{r})}\varHSok^{v_2-\varChallenge z} \\
+	&= \varGSok^{\varGComm^{S}\varHComm^{v_1}}\varHSok^{v_2} \\
+	&= t
+	\end{split}
+\end{equation*}
+
+As seen, the verification equation is indeed correct and the proposed SNSoK is complete.
+
+\subsection{Soundness}
+The soundness property of improved SNSoK can be shown by demonstrating that a hypothetical knowledge extractor can obtain $c$ and $z$ from two accepting proofs that uses the same $t$ but different $(\varChallenge,s,s')$ (\S\ref{sec:3-Properties of Zero-Knowledge Proofs}). Given these conditions, and let the two different $(\varChallenge,s,s')$ be $(\varChallenge_1,s_1,s'_1)$ and $(\varChallenge_2,s_2,s'_2)$, the following equations be can constructed:
+
+$$t=y^{\varChallenge_1}\varGSok^{\varGComm^{S}s_1}\varHSok^{s'_1}=y^{\varChallenge_2}\varGSok^{\varGComm^{S}s_2}\varHSok^{s'_2}$$
+
+Hence it can be derived that:
+
+\begin{align*}
+y^{\varChallenge_{1}}\varGSok^{\varGComm^{S}s_{1}}\varHSok^{s'_{1}} &= y^{\varChallenge_{2}}\varGSok^{\varGComm^{S}s_{2}}\varHSok^{s'_{2}} \\
+y^{\varChallenge_{1}-\varChallenge_{2}} &= \varGSok^{\varGComm^{S}(s_{2}-s_{1})}\varHSok^{s'_{2}-s'_{1}} \\
+y &= \varGSok^{\frac{\varGComm^{S}(s_2-s_1)}{\varChallenge_1-\varChallenge_2}}\varHSok^{\frac{s'_2-s'_1}{\varChallenge_1-\varChallenge_2}}
+\end{align*}
+
+
+Since $y=\expSoKCoinComm{c}$, the knowledge extractor can successfully determine that $c=\frac{\varGComm^{S}(s_2-s_1)}{\varChallenge_1-\varChallenge_2}$ and $z=\frac{s'_2-s'_1}{\varChallenge_1-\varChallenge_2}$. Hence the success of the knowledge extractor in extracting the secret \kwCoin{} $c$ and the secret trapdoor $z$ shows that the proposed proof is sound.
+
+\subsection{Statistical Zero-Knowledge}
+The statistical zero-knowledge property of the improved SNSoK can be shown by demonstrating that a hypothetical simulator can generate $s$ and $s'$ that are statistically indistinguishable from the $s$ and $s'$ generated by the prover (\S\ref{sec:3-Properties of Zero-Knowledge Proofs}). 
+
+Firstly it can be shown that the $s$ and $s'$ generated by the prover are random numbers. Since $\varHComm$ is the generator for the subgroup of order $\varQComm$, $\varHComm^{x}$ produces all element in the subgroup exactly once for $x$ from 1 to $\varQComm$. Thus there is a one-to-one mapping between $v_1$ and $\varHComm^{v_1}$ and since $v_1\in\expIntGroup{\varQComm}$ and $v_1$ is random, $\varHComm^{v_1}$ is also random. As a random number added with a constant still produces a random number, $s=\varHComm^{v_1}-\varChallenge\varHComm^{r}$ is also random. Similarly, since $v_2$ is random, $s'=v_2-\varChallenge z$ is also random. 
+
+As such the simulator can be just a random number generator that produces random numbers $s\in\expIntGroup{\varQComm}$ and $s'\in\expIntGroup{\varQSok}$. Since the $s$ and $s'$ produced by the simulator and the $s$ and $s'$ produced by the prover are both uniformly distributed, they are statistically indistinguishable. Hence the proposed SNSoK achieves statistical zero-knowledge.
+
+\section{Performance of Proposed SNSoK and Future Work}
+\label{sec:5-Performance of Proposed SNSoK and Future Work}
+The performance of the proposed SNSoK is measured using some basic performance metrics defined in \S\ref{sec:4-Performance Metrics and Benchmarks}. The results are shown in Table~\ref{tab:SNSoK_improvement_performance}.
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{ l | c | c }
+		\multirow{2}{*}{} & \multicolumn{2}{c}{\textit{Average over 50 iterations}} \\
+		& \textbf{Proposed} & \textbf{Original} \\ 		
+		\hline 
+		\hline
+		Size of one SNSoK & 390 bytes & 17,420 bytes \\
+		\hline
+		Verification time of one SNSoK & 1.8ms & 163ms \\
+		\hline
+	\end{tabular}
+	\caption{Performance of proposed SNSoK using basic performance metrics}
+	\label{tab:SNSoK_improvement_performance}
+\end{table}
+
+As seen, the proposed SNSoK has drastically reduced the verification time and size of one SNSoK. The verification time is reduced by about 80 times. This is within expectation as the proposed SNSoK essentially reduces the 80 iterations required for each verification to one iteration. The size of the SNSoK is reduced by about 44 times. While this is a huge improvement, it does not match up to expectations as the proposed SNSoK should have reduced the size of the proof by 80 times since it reduces the 80 sets of proof parameters $(t,s,s')$ to just a single set. 
+
+The original SNSoK is smaller than expected because it has been optimised. The idea of the original SNSoK is the same as the standard NIZK proof, where the verifier test whether the $t$ sent by the prover equals to the one that it computes using the response $s$ from the prover and the challenge $\varChallenge$. Specifically the verifier of the original SNSoK checks for the equality between the received $t$ and the $t'$ computed based on the received $s_i,s'_i,\varChallenge$ (\S\ref{sec:3-Serial Number Signature of Knowledge}). However, the verifier in the original SNSoK does not check for this equality directly. Since the $\varChallenge$ sent by the prover is a hash that contains of all the $t_i$ (\S\ref{sec:3-Serial Number Signature of Knowledge}), the verifier simply checks that the $\varChallenge'$ obtained by hashing all the $t'_i$ equals to $\varChallenge$. Under this scheme, a single 256 bits $\varChallenge$ is included in the proof instead of the 80 1024 bits $t_i$, resulting in a much smaller proof size. Currently, the proposed SNSoK does not make use of this optimisation and includes $t$ in the proof. However such optimisation is likely to be applicable to the proposed SNSoK and will be explored in the subsequent phase of the research. 
+
+The tests conducted to evaluate the proposed SNSoK are still preliminary. This research has yet to show the effects of the proposed SNSoK on the Zerocoin network. Going forward, the research will conduct experiments to examine the performance of the original and the improved Zerocoin protocol on a network level using the performance metrics outlined in \S\ref{sec:4-Performance Metrics and Benchmarks}.

@@ -1,0 +1,237 @@
+\ifpdf
+\graphicspath{{Chapter3/Figs/}}
+\else
+\graphicspath{{Chapter3/Figs/}}
+\fi
+
+\chapter{Analysis of Zerocoin}
+\label{ch:Analysis of Zerocoin}
+This chapter delves into the data structures and algorithms of Zerocoin and analyses the reasons behind some of its key weaknesses. A basic understanding of Zerocoin and the issues of privacy detailed in Chapter \ref{ch:Privacy in Bitcoin} and \ref{ch:Methods to Improve Privacy in Digital Currencies} are needed to appreciate the rest of this chapter. Unless otherwise stated, all technical information on Zerocoin is obtained from the original Zerocoin paper \cite{Miers2013}.
+
+\section{Construction of Zerocoin}
+\subsection{Coin as a Pederson Commitment}
+\label{sec:3-Coin as a Pederson Commitment}
+The key element in Zerocoin is the \kwCoin{} that is minted and redeemed in Mint and \kwTransaction{Spend }{s}. A \kwCoin{} $c$ is a Pedersen commitment \cite{Pedersen1992} of a serial number $S\in\expIntGroup{\varQComm}$ and a random trapdoor $r\in\expIntGroup{\varQComm}$ in the form $c=\expPedCommCoin\bmod{\varPComm}$. $\varPComm$ and $\varQComm$ are large primes and $\varGComm$ and $\varHComm$ are generators of the sub-group of $\expIntGroup{\varQComm}$ multiplicative group $\expMulGroup{\varPComm}$. That is to say $\varGComm^0,\varGComm^1,...,\varGComm^{\varQComm}\bmod{\varPComm}$ and $\varHComm^0,\varHComm^1,...,\varHComm^{\varQComm}\bmod{\varPComm}$ produce two sequences of distinct numbers. To satisfy this property, $\varGComm^{\varQComm} \bmod{\varPComm}=1$ and $\varHComm^{\varQComm} \bmod{\varPComm}=1$ and thus $\varQComm$ divides $\varPComm-1$ by Fermat’s Little Theorem. In Zerocoin, $\varPComm$ and $\varQComm$ are prime numbers of 1024 and 256 bits respectively \footnote{Based on the security recommendations in Section VI(B) of the Zerocoin paper \cite{Miers2013}.}, and $\varGComm$ and $\varHComm$ are computed based using the algorithm defined in the Federal Information Processing Standards (FIPS) 186-34 \cite{InformationTechnologyLaboratory2009}. For simplicity of presentation, the Pedersen commitment will be written as $c=\expPedCommCoin$, where modulus $\varPComm$ is implied for generators $\varGComm$ and $\varHComm$. 
+
+In Zerocoin, a single set of $\varGComm,\varHComm,\varPComm,\varQComm$ is generated once as public parameters during set up, and is subsequently used by all users. To mint a \kwCoin{}, a user generates a random serial number $S\in\expIntGroup{\varQComm}$ and another random trapdoor $r\in\expIntGroup{\varQComm}$, computes a Pedersen commitment $c=\expPedCommCoin$ and include $c$ in the \kwTransaction{Mint }{}. $S$ is kept secret when the \kwTransaction{Mint }{} is created and is subsequently revealed in the \kwTransaction{Spend }{} to prove the ownership of $c$ (\S\ref{sec:3-Serial Number Signature of Knowledge}), while $r$ is always secret to the creator of the \kwTransaction{Mint }{}. 
+
+After the \kwTransaction{Mint }{} is verified and published on the Blockchain, everyone can see that the creator of the transaction has minted $c$. Theoretically, an adversary can “steal” a \kwCoin{} by obtaining $S$ and $r$ from the public $c$ and creating a valid \kwTransaction{Spend }{} using $S$ and $r$. However the adversary can only succeed with negligible probability in practice as solving $S$ and $r$ from a known $c$ where $c=\expPedCommCoin$ is believed to be hard under the Discrete Logarithm assumption \cite{Paar2010}. Due to this property, it is also hard to solve $c$ from $S$ without the knowledge of $r$. Since $r$ is secret to the owner of the \kwCoin{} at all times, an adversary is also unable to attribute the $S$ in the \kwTransaction{Spend }{s} to a $c$ in the \kwTransaction{Mint }{s} on the Blockchain. This preserves the anonymity property that the redeemer (payee) of a \kwCoin{} cannot be linked to its creator (payer).
+
+\subsection{Public Accumulator}
+\label{sec:3-Public Accumulator}
+An accumulator “summarises” a large number of values into one value, and given a short witness a specific value can be proven to be accumulated in the accumulator. The accumulator in Zerocoin is a public data structure that contains every minted \kwCoin{} in history. As such, given a witness any nodes in the peer-to-peer network can verify that a \kwCoin{} has been minted using the accumulator. The size of the accumulator remains constant as more \kwCoin{s} are accumulated, thus it can be distributed and stored efficiently by the peer-to-peer network. The accumulator used in Zerocoin is a dynamic accumulator proposed by Camenisch and Lysyanskaya \cite{JanCamenisch12002} that extends the study by Baric and Pfitzmann \cite{BariC1997}. The 3 main functions provided by this accumulator scheme are explained below. 
+
+$\eqnAccum{u}{C}$ accumulates a set of \kwCoin{s} $C=\lbrace \expOneToN{c}{n} \mid c_i \in [A,B] \wedge c_i \: is \: prime \rbrace$ using parameters $(N,u)$ to produce an accumulator $A=u^{\expOneToN{c}{n}}\bmod{N}$. Like the parameters used in the Pedersen commitment for \kwCoin{s} (\S\ref{sec:3-Coin as a Pederson Commitment}), $(N,u)$ are public parameters that are generated once during set up. $N$ is a product of 2 large primes while $u$ is a quadratic residue modulo $N$ \footnote{A quadratic residue modulo N is the square of any integer modulo N.}. $N$ is recommended is to be 3072 bits long \footnote{Based on the security recommendations in Section VI(B) of the Zerocoin paper \cite{Miers2013}.}. $\mathfrak{A}$ and $\mathfrak{B}$ \footnote{$\expAFrak,\expBFrak$. $k'$ and $k''$ are set at 160 and 128 respectively. The reasons behind these values can be found in \cite{Miers2013} and \cite{JanCamenisch12002}.} defines the range of the values that an accumulated \kwCoin{} $c$ can take. In addition, $c$ must be prime before it can be accumulated. Hence when minting a new \kwCoin{}, different $S$ and $r$ must be tried until $c=\expPedCommCoin$ satisfies the above constraints. 
+
+Every time a new \kwCoin{} is successfully minted, nodes will accumulate the new \kwCoin{} into the public accumulator. Due to the construction of the dynamic accumulator, a new \kwCoin{} $c_{new}$ can be incrementally accumulated \cite{JanCamenisch12002} into the previous accumulator $A$ using $\eqnAccum{A}{\{c_{new}\}}$. Thus when updating the accumulator, one do not need to recompute $u^{\expOneToN{c}{n}c_{new}}\bmod{N}$ but simply compute $A^{c_{new}}\bmod{N}$ using the latest $A$, making accumulation efficient. Zerocoin proposes that each \kwBlock{} contains an accumulator called the accumulator checkpoint that contains all the \kwCoin{s} minted up till that \kwBlock{}. This way nodes do not need to compute the accumulator from scratch, and can choose an accumulator checkpoint from any \kwBlock{} and incrementally accumulate the \kwCoin{s} minted after that \kwBlock{} to obtain the latest accumulator value.
+
+For a \kwCoin{} $c\in C$, $\eqnGenWit{c}{w}$ produces a witness $w=\eqnAccum{u}{C\setminus\{c\}}$. That is, $is$ an accumulation of all the \kwCoin{s} in $C$ except $c$. In Zerocoin, $C$ is the set of all minted \kwCoin{s} in history. With $w$, one can verify that that $c$ is in $C$ using $\eqnAccVer{c}$, where $A=\eqnAccum{u}{C}$. $AccVerify$ returns 1 if and only if $A=w^{c}\bmod{N}$ and $c$ is a valid \kwCoin{} ($c$ is prime and $c\in[\mathfrak{A},\mathfrak{B}]$). It can be seen that $A=w^{c}\bmod{N}$ is the correct verification equation as $A=\eqnAccum{u}{C}=u^{\expOneToN{c}{n}c}\bmod{N}=(u^{\expOneToN{c}{n}})^c\bmod{N}=w^{c}\bmod{N}$. To ensure security, $A$ should be independently computed by each verifier, which can be achieved efficiently using the incremental method described in the previous paragraph.
+
+In Zerocoin, $GenWitness$ is used by the creator of a \kwTransaction{Spend }{} to create a witness to prove that the redeemed \kwCoin{} is in the accumulator. $AccVerify$ is used by nodes in the Zerocoin network to verify that claim when validating the \kwTransaction{Spend }{}. However $AccVerify$ is used only in principle and not directly, because $w$ and $c$ are not revealed to the verifier in a \kwTransaction{Spend }{} in order to keep $c$ unkown. Why and how the \kwTransaction{Spend }{} is verified without the knowledge of $w$ and $c$ is discussed in \S\ref{sec:3-Accumulator Proof of Knowledge}.
+
+\subsection{Non-Interactive Zero Knowledge (NIZK) Proofs}
+\label{sec:3-Non-Interactive Zero Knowledge (NIZK) Proofs}
+\subsubsection{Interactive Zero Knowledge Proofs}
+\label{sec:3-Interactive Zero Knowledge Proofs}
+Zerocoin relies heavily on NIZK proofs, which are a subset of zero-knowledge (ZK) proofs. ZK proof is a proof of the knowledge of an element without disclosing any information beyond the legitimacy of the proof \cite{Kiayias} The formal notation of ZK proof introduced by Camenisch and Stadler \cite{Camenisch1997a} is as follow:
+
+$$ZKPoK\{(w):statement\ proving\ knowledge\ of\ w\}$$
+
+$ZKPoK$ refers to Zero-Knowledge Proof of Knowledge. The proof statement is enclosed in the curly brackets. The element in parenthesis is the information that the prover wishes to show knowledge of, but cannot be disclosed. This notation will be used for all zero knowledge proofs in this paper. 
+
+ZK proofs often surrounds an NP-hard problem. In general, a prover wants to prove that he has a secret solution $w$ to the NP-hard problem $y$. The prover first sends a random problem $t$ that has a solution $v$ that is unrelated to $w$. The verifier then sends a random challenge $\varChallenge$ to the prover, and the prover replies with a response $s$ that looks random but in fact is a combination of $v$, $w$ and $\varChallenge$. The verifier verifies the proof by composing $s$ with $\varChallenge$ and the original problem $y$. $s$ is constructed in a way such that if the prover knows $w$, it will cancel out $y$, leaving behind only the random problem $t$. Hence by checking that the result of the proof is $t$ the verifier is able to verify the proof, but does not learn anything about $w$ since all he sees are random values. The above is a form of interactive ZK proof which involves the verifier communicating the challenge $\varChallenge$ to the prover. A simple example of an interactive ZK proof for the knowledge of discrete logarithm can be found online \cite{Unknown2016}. This proof is chosen as an example as it is closely related to the proofs used in the Zerocoin protocol.
+
+\subsubsection{Transforming Interactive Zero Knowledge Proofs to NIZK Proofs}
+\label{sec:3-Transforming Interactive Zero Knowledge Proofs to NIZK Proofs}
+NIZK proof is a special kind of ZK proof that removes the need for the verifier to interact with the prover. The prover can achieve this by a generating a challenge $\varChallenge$ from $y$ and $t$ using a random oracle \footnote{A theoretical black box that responds to every unique query with a truly random response chosen uniformly from its output domain. If a query is repeated it responds the same way every time that query is submitted. \cite{Unknown2016a}}, and treat this $\varChallenge$ as the challenge that the verifier sends in the interactive version the ZK proof. The prover then computes $s$ based on the generated $\varChallenge$ and sends the proof containing $y$, $t$ and $s$ to the verifier. Upon receiving the proof, the verifier recomputes $\varChallenge$ from the received $y$ and $t$ using the random oracle, and verifies the proof in the same way as the interactive version of the ZK proof. Since there is no interaction between the prover and the verifier, the NIZK is achieved. 
+
+The Fiat-Shamir heuristics \cite{Fiat1987} is a popular technique to transform interactive ZK proofs into NIZK proofs. Using the Fiat-Shamir heuristics, the random oracle is implemented as a cryptographic hash function \cite{Bellare1993}, and $\varChallenge$ is obtained by hashing $y$ and $t$ together with and other parameters. The NIZK proofs used in Zerocoin and the proofs proposed by this research all use the Fiat-Shamir heuristics in one way or another. The same online resource that illustrates interactive ZK proof for the knowledge of discrete logarithm also shows how the proof can be modified into a NIZK form using the Fiat-Shamir heuristics \cite{Unknown2016}. 
+
+\subsubsection{Properties of Zero-Knowledge Proofs}
+\label{sec:3-Properties of Zero-Knowledge Proofs}
+All ZK proofs (NIZK proofs included) need to fulfil the below properties \cite{Kiayias}:
+\begin{enumerate}
+	\item \textbf{\textit{Completeness}}: If the prover indeed knows the secret $w$, and both the prover and verifier follow the procedures of the proof, then the proof will always be verified.
+	\item \textbf{\textit{Soundness}}: If the prover does not know the secret $w$, and both the prover and verifier follow the procedures of the proof, then the proof will not be verified. This property can be proven if a hypothetical program called the knowledge extractor that can extract $w$ from the prover using two accepting proofs that uses the same $t$ but different $\varChallenge$ and $s$. In order to do this, the knowledge extractor has access to the prover’s program (but not the $w$ itself) and can “rewind” the proof to obtain another set of $\varChallenge$ and $s$. The success of the knowledge extractor is needed to prove for soundness because if a prover who does not know $w$ manages to prove the knowledge of $w$, there is no way that a knowledge extractor can extract a $w$ that is non-existent in the proof.
+	\item \textbf{\textit{Statistical Zero-Knowledge}}: The verifier does not gain any knowledge after interacting with the prover. This can be proven if a hypothetical program called a simulator with no knowledge of the secret $w$, is able to generate a response $s'$ to the challenge $\varChallenge$, such that $s'$ is statistically indistinguishable from the actual response $s$ generated by the prover. In this way the verifier does not learn anything more from the $s$ sent by the prover than from the $s$ sent by the simulator.
+\end{enumerate}
+
+\subsubsection{NIZK Proofs in Zerocoin}
+\label{sec:3-NIZK Proofs in Zerocoin}
+NIZK proofs are used in Zerocoin to prove the ownership of a valid unredeemed \kwCoin{} in a \kwTransaction{Spend }{}. The proof needs to be zero-knowledge so that the verifier or anyone who sees the \kwTransaction{Spend }{} does not know which \kwCoin{} is being spent. The proof also needs to be non-interactive because a \kwTransaction{Spend }{} can be verified by any node in the Zerocoin network at any time, and it is not possible for a verifier to interact with the creator of the transaction. The three NIZK proofs in a \kwTransaction{Spend }{} are:
+
+\begin{enumerate}
+	\item \textbf{\textit{Accumulator Proof of Knowledge (AccPoK)}}: Proves that a \kwCoin{} $c$ has been minted, without disclosing $c$. This is achieved by proving that $c$ is contained in the public accumulator in which every \kwCoin{} that has been minted should have been included in. Details of this proof is discussed in \S\ref{sec:3-Accumulator Proof of Knowledge}.
+	\item \textbf{\textit{Serial Number Signature Proof of Knowledge (SNSoK)}}: Proves the knowledge of the serial number $S$ and the secret trapdoor $r$ that are committed in the redeemed \kwCoin{} $c$, without disclosing $r$ and $c$. Since only the owner of a \kwCoin{} knows its $S$ and $r$, this proof shows that the prover owns the \kwCoin{} being proven for. This proof also acts as a digital signature for the \kwTransaction{Spend }{}. A digital signature is needed to prevent the contents of the \kwTransaction{Spend }{}, which contains the public key address that the redeemed \kwCoin{} should be paid to, from being tampered with. Details of this proof is discussed in \S\ref{sec:3-Serial Number Signature of Knowledge}. 
+	\item \textbf{\textit{Commitment Proof of Knowledge (CommPoK)}}: Proves that the \kwCoin{} being proven for in the accumulator Proof of Knowledge and the \kwCoin{} being proven for in the Serial Number Signature of Knowledge are the same \kwCoin{}. This ensures the \kwCoin{} which the prover is proving to be minted is the same \kwCoin{} that he is proving ownership for. With this proof, one cannot redeem a minted \kwCoin{} that he does not own. Details of this proof is discussed in \S\ref{sec:3-Commitment Proof of Knowledge}. 
+\end{enumerate}
+
+\subsubsection{Accumulator Proof of Knowledge}
+\label{sec:3-Accumulator Proof of Knowledge}
+For a \kwCoin{} to be spent, it must first be proven that the \kwCoin{} has been minted. The Accumulator Proof of Knowledge (AccPoK) proves this claim using the public accumulator which contains all the minted \kwCoin{s} in history.
+
+As seen in \S\ref{sec:3-Public Accumulator}, the claim that a \kwCoin{} $c$ is in the set of minted \kwCoin{s} can be verified by presenting $AccVerify$ with the witness $w$. However this cannot be done directly in Zerocoin as $c$ needs to be secret in order to preserve unlinkability between the minter and the redeemer of $c$. In addition, $w$ also needs to be secret as it can be used to obtain $c$. This is possible because all the minted \kwCoin{s} in history are publicly available in the \kwTransaction{Mint }{s} on the Blockchain. An adversary can run $\eqnGenWit{c'}{w'}$ repeatedly using all $c'\in C$, where $C$ is all the minted \kwCoin{s} in history, and the $c'$ that produced a $w=w'$ is the \kwCoin{} that is being proven for. Hence to hide $c$ and $w$, the AccPoK is as such:
+
+$$\eqnAccPoK$$
+
+The implementation of the AccPoK is adapted from an interactive version of the proof by Camenisch and Lysyanskaya \cite{JanCamenisch12002} and modified to a non-interactive form using the Fiat-Shamir heuristics. The rest of the section describes the implementation details. 
+
+In order to hide $c$ and $w$, the prover creates the following commitments of $c$ and $w$ using random trapdoors:
+
+\begin{enumerate}
+	\item $\varAccPoKCoinComm$, a commitment of $c$ with a random trapdoor $ \varphi\in\expIntGroup{\lfloor N/4 \rfloor}$ such that $\varAccPoKCoinComm=\varAccPoKGComm^{c}\varAccPoKHComm^{\varphi}\bmod{\varAccPoKPComm}$. $\varAccPoKGComm$ and $\varAccPoKHComm$ are generators for sub-group $\expIntGroup{\varAccPoKQComm}$ of multiplicative group $\expIntGroup{\varAccPoKPComm}^{*}$, where $\varAccPoKQComm >2\mathfrak{B}$.
+	\item $\varAccPoKProofComm{c}$, another commitment of $c$ with a random trapdoor $ \eta\in\expIntGroup{\lfloor N/4 \rfloor}$ such that $\varAccPoKProofComm{c}=\varAccPoKGProof^{c}\varAccPoKHProof^{\eta}\bmod{N}$. $\varAccPoKGProof$ and $\varAccPoKHProof$ are quadratic residues modulo $N$.
+	\item $\varAccPoKProofComm{w}$, a commitment of the witness $w$ with a random trapdoor $ \epsilon\in\expIntGroup{\lfloor N/4 \rfloor}$ such that $\varAccPoKProofComm{w}=w\varAccPoKHProof^{\epsilon}\bmod{N}$.
+	\item $\varAccPoKProofComm{r}$, a commitment of $\epsilon$ with a random trapdoor $\zeta\in\expIntGroup{\lfloor N/4 \rfloor}$ such that $\varAccPoKProofComm{r}=\varAccPoKGProof^{\epsilon}\varAccPoKHProof^{\zeta}\bmod{N}$.
+\end{enumerate}
+
+Like the parameters used in the accumulator (\S\ref{sec:3-Public Accumulator}), $\varAccPoKGComm,\varAccPoKHComm,\varAccPoKGProof,\varAccPoKHProof,\varAccPoKPComm,\varAccPoKQComm$ are public parameters that are generated once during set up. For simplicity of presentation, the modulus of the above commitments are omitted and implied. With these commitments, the prover implements the AccPoK by constructing a NIZK proof that shows that $\varAccPoKCoinComm$ and the accumulator $A$ contains the same $c$ in the following form:
+
+\eqnAccPoKActual
+
+The proof follows the standard flow of a NIZK proof described in \S\ref{sec:3-Transforming Interactive Zero Knowledge Proofs to NIZK Proofs}. Since there are 8 sub proofs in the NIZK proof, the prover first commits some random values $v_i$ to create commitments $\varAccPoKCoinComm,\varAccPoKProofComm{c},\varAccPoKProofComm{w},\varAccPoKProofComm{r}$ that are not related to,for each of the sub-proof. Following the principle of the Fiat-Shamir heuristics, the prover computes the challenge string $\varChallenge=H(\expConcatAccPoK)$ \footnote{$H$ denotes the SHA-256 hash function used by Zerocoin. $\|$ denotes a concatenation operation} and further computes $s_i$ that correspond to each $t_i$ using $\varChallenge$. The final $\varAccPoKCoinComm,\varAccPoKProofComm{c},\varAccPoKProofComm{w},\varAccPoKProofComm{r},t_i,s_i$ are written into the \kwTransaction{Spend }{} and broadcasted to the Zerocoin network to be verified. Upon receiving the \kwTransaction{Spend }{}, the nodes re-computes $\varChallenge=H(\expConcatAccPoK)$ using the received $\varAccPoKCoinComm,\varAccPoKProofComm{c},\varAccPoKProofComm{w},\varAccPoKProofComm{r},t_i,s_i$ and the public parameters $\varAccPoKGComm,\varAccPoKHComm,\varAccPoKGProof,\varAccPoKHProof$,. The verifier then verifies the proof by checking if each received $t_i$ equals to the $t'_i$ computed from $\varChallenge$ and $s_i$ using some verification formulas. The verification formulas are detailed in Appendix A of \cite{JanCamenisch12002}. The completeness, soundness and statistical zero-knowledge properties of the proof are also detailed in the \S3.3 of the same study.
+
+\subsubsection{Serial Number Signature of Knowledge}
+\label{sec:3-Serial Number Signature of Knowledge}
+Proving that a \kwCoin{} has been accumulated in the public accumulator only shows that the prover knows some \kwCoin{} has been minted, but does not legitimise his ownership of the \kwCoin{}. Anyone who looks at the Blockchain can simply take a \kwCoin{} from any past \kwTransaction{Mint }{s}, obtain a witness for the \kwCoin{} using $GenWitness$ and construct a valid AccPoK for that \kwCoin{}. Hence, the creator of a \kwTransaction{Spend }{} must also prove that he owns the redeemed \kwCoin{}. This is done using the Serial Number Signature of Knowledge (SNSoK) where the prover proves that he knows the serial number $S$ and the random trapdoor $r$ that are committed a \kwCoin{} $c$ without disclosing $r$ and $c$. Since $r$ is secret to the owner of $c$ at all times, only the owner of the $c$ can produce a valid proof. This proof is a “signature” because it binds to the other contents of the \kwTransaction{Spend }{} such as the public key address of the payee. As the SNSoK becomes invalid once the contents of the \kwTransaction{Spend }{} changes, adversaries cannot tamper with the \kwTransaction{Spend }{}. Given the above objectives and constraints, the SNSoK in Zerocoin is as such:
+
+$$\eqnSNSoK$$
+
+The $m$ enclosed in the square brackets denotes the contents in the \kwTransaction{Spend }{} to be signed. As the serial number $S$ of the redeemed $c$ is disclosed in the proof, the trapdoor $r$ must be kept secret to prevent $c$ from being computed by observers of the Blockchain. The implementation of the SNSoK is adapted from the proof by Camenisch \cite{No1998}.
+
+In order to hide $c$, the prover creates $y$, a Pedersen commitment of $c$ using a random trapdoor $z\in\expIntGroup{\varQSok}$, such that $y=\expSoKCoinComm{c}\bmod{\varPSok}=\expSoKCoinComm{\expPedCommCoin}\bmod{\varPSok}$. As per Pedersen commitment scheme, $\varGSok$ and $\varHSok$ are generators of the sub-group $\expIntGroup{\varQSok}$ of multiplicative group $\expMulGroup{\varPSok}$, and $\varQSok|\varPSok-1$. As the exponent in a Pederson commitment must be an element of $\expIntGroup{q}$ \cite{Pedersen1992}, $c\in\expIntGroup{\varQSok}$ and since $c$ is a value modulo $\varPComm$ (\S\ref{sec:3-Coin as a Pederson Commitment}), it is required that $\varQSok=\varPComm$. Like the parameters used in the Pedersen commitment for \kwCoin{s} (\S\ref{sec:3-Coin as a Pederson Commitment}), $\varGSok,\varHSok,\varPSok,\varQSok$ are public parameters that are generated once during set up. For simplicity of presentation, the modulus $\varPSok$ is omitted and implied for $\varGSok$ and $\varHSok$. With $y$, the prover implements the SNSoK by constructing a NIZK proof that shows that $y$ contains a $c$ that is a commitment to the serial number $S$ and trapdoor $r$ in the following form:
+
+$$\eqnSNSoKActual$$
+
+The flow of the NIZK proof is largely similar to the standard NIZK proof under the Fiat-Shamir heuristics described in \S\ref{sec:3-Non-Interactive Zero Knowledge (NIZK) Proofs}, but has a slightly different way of computing and using the challenge $\varChallenge$. The prover first creates $t_i$ for $i$ from 0 to $\varLambdaSec$ using random numbers $u_i\in\expIntGroup{\varQComm}$ and $v_i\in\expIntGroup{\varQSok}$ such that $t_i=\varGSok^{\varGComm^{S}\varHComm^{u_i}}\varHSok^{v_i}$. To ensure security, the Zerocoin paper recommends that $\varLambdaSec=80$ \footnote{Based on the security recommendations in Section VI(B) of the Zerocoin paper \cite{Miers2013}.}. Following the principle of the Fiat-Shamir heuristics, the prover then computes the challenge string $\varChallenge=H(\expConcatSNSoK)$. The inclusion of $m$ in the hash $\varChallenge$ ensures that the contents of the \kwTransaction{Spend }{} is bound to the challenge string. Any tampering with $m$ will cause $\varChallenge$ to be invalid and the proof fail. Thus $\varChallenge$ also serves as the signature for $m$. Using $\varChallenge$ the prover then computes $s_i$ and $s'_i$ in the following manner:
+
+\begin{algorithm}
+	\begin{algorithmic}[H]
+		\For{$i\gets 1, \varLambdaSec$}
+		\If{$i^{th}$ bit in $\varChallenge=0$}
+		\State $s_i=(u_i-r)$; $s'_i=(v_i-z\varHComm^{u_i-r})$ 
+		\Else
+		\State $s_i=u_i$; $s'_i=v_i$
+		\EndIf
+		\EndFor
+	\end{algorithmic}
+\end{algorithm}	
+
+The prover writes $y,\varChallenge,t_1,\cdots,t_{\varLambdaSec},s_1,\cdots,s_{\varLambdaSec},s'_1,\cdots,s'_{\varLambdaSec}$ and the transaction content $m$ into the \kwTransaction{Spend }{} and broadcast it to the Zerocoin network to be verified. Upon receiving the \kwTransaction{Spend }{}, the nodes computes $\varChallenge'=H(\expConcatPrimeSNSoK)$ where:
+
+\begin{algorithm}
+	\begin{algorithmic}[H]
+		\For{$i\gets 1, \varLambdaSec$}
+		\If{$i^{th}$ bit in $\varChallenge'=0$}
+		\State $t'_i=y^{\varHComm^{s_i}}\varHSok^{s'_i}$ 
+		\Else
+		\State $t_i=\varGSok^{\varGComm^{S}\varHComm^{s_i}}\varHSok^{s'_i}$
+		\EndIf
+		\EndFor
+	\end{algorithmic}
+\end{algorithm}	
+
+The proof is verified if and only if $\varChallenge'$ equals to the $\varChallenge$ received. In order for $\varChallenge'=\varChallenge$, it must be the case that $t_i=t'_i$ for $i$ from 1 to $\varLambdaSec$. In addition, the $m$ used to compute $\varChallenge'$ must also be the original $m$ used to compute $\varChallenge$, and thus $\varChallenge$ acts as the signature that preserves the integrity of $m$. The details of the SNSoK are taken from Appendix B of the Zerocoin paper. The completeness, soundness and statistical zero-knowledge properties of the proof are also detailed in the same paper.
+
+\subsubsection{Commitment Proof of Knowledge}
+\label{sec:3-Commitment Proof of Knowledge}
+The AccPoK and SNSoK independently proves a certain property of a \kwCoin{}. However with only these two proofs, nothing is stopping one from constructing an AccPoK and a SNSoK for two different \kwCoin{s}. A dishonest user can exploit this by constructing a valid SNSoK for an arbitrary \kwCoin{} using an arbitrary serial number and secret trapdoor, and a valid AccPoK for any minted \kwCoin{} on the Blockchain (\S\ref{sec:3-Accumulator Proof of Knowledge}). Since the \kwCoin{s} in the two proofs are not known to the verifying nodes, the dishonest user is able to spend the arbitrary \kwCoin{}, and claim that it is the minted \kwCoin{} without being found out. This is analogous to the ability to printing money in real life. Hence there must be some way to ensure that the \kwCoin{s} being proven for in the AccPoK and SNSoK are the same \kwCoin{}. This is achieved using the Commitment Proof of Knowledge (CommPoK), where the prover proves that that commitment of the \kwCoin{} $\varAccPoKCoinComm=\varAccPoKGComm^{c}\varAccPoKHComm^{\varphi}$ used in the AccPoK contains the same $c$ as the commitment of the \kwCoin{} $y=\expSoKCoinComm{c}$ used in the SNSoK. Hence the CommPoK is implemented in the following form:
+
+$$\eqnCommPoK$$
+
+The CommPoK is an extension of the proof by Camenisch to prove for the equality of two secret keys \cite{No1998}. The proof follows the standard flow of a NIZK proof described in \S\ref{sec:3-Transforming Interactive Zero Knowledge Proofs to NIZK Proofs}. The prover first creates commitments $t_1=\varAccPoKGComm^{v_1}\varAccPoKHComm^{v_2}$ and $t_2=\varGSok^{v_1}\varHSok^{v_3}$ using random numbers $v_1,v_2,v_3$. Following the principle of the Fiat-Shamir heuristics, the prover computes the challenge string $\varChallenge=H(\expConcatCommPoK)$ and further computes $s_1=v_1+c\varChallenge$, $s_2=v_2+\varphi\varChallenge$ and $s_3=v_3+z\varChallenge$. The prover then includes $\varAccPoKCoinComm,y,t_1,t_2,s_1,s_2,s_3$ in the \kwTransaction{Spend }{} together with the other proofs and broadcasts the transaction to the Zerocoin network. Upon receiving the proof in the \kwTransaction{Spend }{}, the verifying nodes re-compute $\varChallenge=H(\expConcatCommPoK)$ using the received $\varAccPoKCoinComm,y,t_1,t_2$ and the public parameters $\varAccPoKGComm,\varAccPoKHComm,\varGSok,\varHSok$. The verifier then verifies the proof by checking if both equalities $t_1=\varAccPoKGComm^{s_1}\varAccPoKHComm^{s_2}\varAccPoKCoinComm^{-\varChallenge}$ and $t_2=\varGSok^{s_1}\varHSok^{s3}y^{-\varChallenge}$ are true. The completeness, soundness and statistical zero-knowledge properties of the proof are detailed in the study by Camenisch \cite{No1998}.
+
+\subsubsection{Public Parameters}
+\label{sec:3-Public Parameters}
+A summary of the public parameters used in the Zerocoin protocol is listed in Table~\ref{tab:pub_params}. These parameters only need to be generated once during the setup of the Zerocoin system, and are subsequently used by all nodes for creating and verifying transactions. 
+
+\begin{table}[H]
+	\centering \small
+	\begin{tabular}{ l | m{2cm} | m{2.5cm} | m{5.5cm} }
+		
+		& \textbf{Public Parameter} & \textbf{Recommended value/size} & \textbf{Properties}\\ 		
+		\hline
+		\hline
+		\multirow{4}{*}{\textbf{Coin commitment}} 
+		& $\varPComm$ & 1024 bits & $\varQComm|\varPComm-1$ \\
+		& $\varQComm$ & 256 bits & $\varQComm|\varPComm-1$ \\
+		& $\varGComm$ & N.A. & Generator for sub-group $\expIntGroup{\varQComm}$ of multiplicative group $\expMulGroup{\varPComm}$ \\
+		& $\varHComm$ & N.A. & Generator for sub-group $\expIntGroup{\varQComm}$ of multiplicative group $\expMulGroup{\varPComm}$ \\
+		\hline
+		\multirow{4}{*}{\textbf{Public Accumulator}}
+		& $N$ & 3072 bits & Product of two large primes \\
+		& $[\mathfrak{A},\mathfrak{B}]$ & N.A. & $[-\varPComm2^{k'+k''+2},\varPComm2^{k'+k''+2}]$ \\
+		& $k$ & 160 & \\
+		& $k'$ & 128 & \\
+		\hline
+		\multirow{6}{*}{\textbf{AccPoK/CommPoK}} 
+		& $\varAccPoKPComm$ & N.A.& $\varAccPoKQComm|\varAccPoKPComm-1$ \\
+		& $\varAccPoKQComm$ & $>2\mathfrak{B}$ & $\varAccPoKQComm|\varAccPoKPComm-1$ \\
+		& $\varAccPoKGComm$ & N.A. & Generator for sub-group $\expIntGroup{\varAccPoKQComm}$ of multiplicative group $\expMulGroup{\varAccPoKPComm}$ \\
+		& $\varAccPoKHComm$ & N.A. & Generator for sub-group $\expIntGroup{\varAccPoKQComm}$ of multiplicative group $\expMulGroup{\varAccPoKPComm}$ \\
+		& $\varAccPoKGProof$ & N.A. & Quadratic residue modulo $N$ \\
+		& $\varAccPoKHProof$ & N.A. & Quadratic residue modulo $N$ \\
+		\hline
+		\multirow{5}{*}{\textbf{SNSoK/CommPoK}}
+		& $\varLambdaSec$ & 80 & \\
+		& $\varPSok$ & N.A. & $\varQSok|\varPSok-1$\\
+		& $\varQSok$ & N.A. & Equals $\varPComm$ \\
+		& $\varGSok$ & N.A. & Generator for sub-group $\expIntGroup{\varQSok}$ of multiplicative group $\expMulGroup{\varPSok}$\\
+		& $\varHSok$ & N.A. & Generator for sub-group $\expIntGroup{\varAccPoKQComm}$ of multiplicative group $\expMulGroup{\varAccPoKPComm}$\\
+		\hline
+	\end{tabular}
+	\caption{Public parameters used in Zerocoin}
+	\label{tab:pub_params}
+\end{table}
+
+\section{Zerocoin Implementation: libzerocoin}
+\label{sec:3-Zerocoin Implementation: libzerocoin}
+The main protocols in Zerocoin have been implemented in C++ by the Zerocoin authors and the source code is publicly available on Github under the name of libzerocoin \footnote{Code repository can be accessed at https://github.com/Zerocoin/libzerocoin}. libzerocoin is not a full-fledged digital currency system. Instead, it is a library that provides the functions of setting up Zerocoin public parameters (\S\ref{sec:3-Public Parameters}), creating (\S\ref{sec:3-Coin as a Pederson Commitment}) and accumulating \kwCoin{s} (\S\ref{sec:3-Public Accumulator}) and constructing and verifying the various zero-knowledge proofs (\S\ref{sec:3-NIZK Proofs in Zerocoin}). Since libzerocoin has implemented all of the key elements of Zerocoin, it can be used to analyse the performance of the Zerocoin in isolation. More importantly, libzerocoin provides a comprehensive set of functions to generate protocol parameters and perform cryptography-related computations such as SHA-256 and modulo arithmetic on large numbers. This allows the high level protocol of Zerocoin to be modified without the need to meddle with the details, and makes implementing improvements convenient. Hence this research builds on the code base of libzerocoin to conduct tests and make potential improvements.
+ 
+\section{Performance of Zerocoin and Areas for Improvement}
+\label{sec:3-Performance of Zerocoin and Areas for Improvement}
+libzerocoin has been modified to test the computational and storage requirements of the key data structures and algorithms in Zerocoin. The tests are conducted using the public parameter values and sizes recommended by the Zerocoin paper (Table \ref{tab:pub_params}). The machine used to run the tests is a \_\_\_\_. The results of the tests are shown in Table~\ref{tab:zerocoin_comp_storage}.
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{ l | c | c }
+		\multirow{2}{*}{} & \multicolumn{2}{c}{\textit{Average over 50 iterations}} \\
+		& \textbf{Time taken} & \textbf{Size of output} \\ 		
+		\hline 
+		\hline
+		Generation of public parameters & 849ms & 2578 bytes \\
+		\hline
+		Creation of one \kwCoin{} & 324ms & 199 bytes \\
+		Accumulation of one \kwCoin{} & 39ms & 391 bytes (accumulator size) \\
+		\hline
+		Construction of one AccPoK & 146ms & \textbf{6,974 bytes} \\
+		Construction of one SNSoK & 146ms & \textbf{17,420 bytes} \\
+		Construction of one CommPoK & 5ms & 714 bytes \\
+		\hline
+		Verification of one AccPoK & \textbf{100ms} & N.A. \\
+		Verification of one SNSoK & \textbf{163ms} & N.A. \\
+		Verification of one CommPoK & 4ms & N.A. \\
+		\hline
+	\end{tabular}
+	\caption{Computational and storage requirements of Zerocoin}
+	\label{tab:zerocoin_comp_storage}
+\end{table}
+
+The results highlighted in bold are identified as the performance weaknesses of Zerocoin which this research aims to address. With reference to Table \ref{tab:zerocoin_comp_storage}, the next two sections elaborate on why these weaknesses are identified. 
+
+\subsubsection{Computational Performance}
+\label{sec:3-Computational Performance}
+The computations that affect the performance of Zerocoin the most are those which need to be carried out by the Zerocoin peer-to-peer network. For the generation of public parameters, the Zerocoin network does no incur any computational costs since the parameters are generated once by the trusted party that sets up the system. Thus the cost of generating public parameters is not considered a performance issue. The creation of \kwCoin{s} and the construction of the NIZK proofs are carried out by Zerocoin users whenever they want to make a transaction. Even though the time taken for these operations is in the order of hundreds of milliseconds, the computation requirement is contained within the individual users. As such \kwCoin{} creation and proofs construction do not impose on the peer-to-peer network, and its relatively high computation requirement is still acceptable.
+
+The accumulation of \kwCoin{s} is performed by all nodes in the Zerocoin network as they need the most updated accumulator value to verify \kwTransaction{Spend }{s}. Although the 39ms taken to accumulate a \kwCoin{} is not small, nodes only need to accumulate the newly minted \kwCoin{s} to the previous accumulator each time a new \kwBlock{} is received since the accumulator can be incrementally computed (\S\ref{sec:3-Public Accumulator}). As blocks are only added to the Blockchain every 10 minutes (as per Bitcoin), nodes only need to periodically accumulate a small subset of the minted \kwCoin{s} in history. With this optimisation, the computational requirement to accumulate a \kwCoin{} is acceptable. 
+
+On the other hand, verification of NIZK proofs is done by all nodes in the Zerocoin network whenever they receive a \kwTransaction{Spend }{}. Thus the time needed to verify \kwTransaction{Spend }{s} grows linearly with the number of \kwTransaction{Spend }{s} received. The verification time of the AccPoK (100ms) and the SNSoK (163ms), which make up the bulk of the verification time of a \kwTransaction{Spend }{}, is an area of concern. In fact, the Zerocoin paper showed that the rate at which nodes verify transactions decreases by about half when only 12.5\% of all transactions in the network are \kwTransaction{Spend }{s} and the other 12.5\% and 75\% are \kwTransaction{Mint }{s} and standard Bitcoin transactions respectively \cite{Miers2013}. In addition, a node may need to verify the same \kwTransaction{Spend }{s} twice – once before it forwards the \kwTransaction{Spend }{} to its peers, and another time when a new \kwBlock{} containing the \kwTransaction{Spend }{} is received. The longer time taken by nodes to verify \kwTransaction{Spend }{s} increases the time taken for transactions to reach mining nodes and make it to the Blockchain, and slows the Zerocoin entire network. Thus, the inefficiency in verifying the AccPoK and the SNSoK is a serious limiting factor to Zerocoin’s performance, and this research aims to reduce the time taken to verify these proofs.
+
+\subsubsection{Storage Requirements}
+\label{sec:3-Storage Requirements}
+Each node in Zerocoin stores a single copy of the public parameters, thus the 2.5KB of storage required by the public parameters is negligible. The other Zerocoin data structures need to be stored by nodes on a \kwTransaction{}{} or \kwBlock{} basis as part of the Blockchain, and their sizes affect the storage requirements of Zerocoin significantly. The rest this section uses Bitcoin as a point of reference to demonstrate the storage implications of Zerocoin.
+
+The accumulator is stored on a \kwBlock{} level. As of October 2016, the average size of one \kwBlock{} in Bitcoin is about 0.8MB \cite{Blockchain.info2016}. Thus an additional accumulator of 391 bytes for each \kwBlock{} has negligible effect on the \kwBlock{} size. On the other hand, a \kwCoin{} is stored in each \kwTransaction{Mint }{}, while the AccPoK, SNSoK and CommPoK are stored in each \kwTransaction{Spend }{}. As of 2015, the average size of one standard Bitcoin \kwTransaction{}{} in is 566 bytes \cite{TradeBlock2015}. For simplicity of analysis, the Zerocoin data structures are added to the standard Bitcoin \kwTransaction{}{} to estimate the size of Zerocoin transactions. As such, a \kwTransaction{Mint }{} is bigger than a Bitcoin \kwTransaction{}{} by the size of a \kwCoin{} (199 bytes), and a \kwTransaction{Spend }{} is bigger than a Bitcoin \kwTransaction{}{} by the total size of the AccPoK, SNSoK and CommPoK (25KB). This means that a \kwTransaction{Mint }{} increases transaction size by 35\% while a \kwTransaction{Spend }{} increases transaction size by 4,400\%. 
+
+While a 35\% increase in size for a \kwTransaction{Mint }{} is still reasonable, a 44-fold increase in size for a \kwTransaction{Spend }{} is undesirable. To illustrate, if \kwTransaction{Spend }{s} make up just 10\% of all the transactions on the Blockchain, the total size of the transactions on the Blockchain will increase by 4.4 times. Since transactions make up the bulk of Blockchain stored in every node, the Zerocoin protocol imposes an enormous storage requirement compared to Bitcoin. In addition, the large size of the Zerocoin transaction also slows down the propagation of transactions in the network. As a result, Zerocoin transactions takes longer to reach the mining nodes and make it to the Blockchain, and slows down the entire Zerocoin network. Since the \kwTransaction{Spend }{} contributes significantly the storage requirements and the AccPoK (6974 bytes) and the SNSoK (17,420 bytes) make up the bulk of a \kwTransaction{Spend }{}, this research aims to reduce the size of the AccPoK and SNSoK to improve the overall performance of Zerocoin.
+
